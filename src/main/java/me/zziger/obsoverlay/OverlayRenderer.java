@@ -7,6 +7,7 @@ import com.mojang.blaze3d.systems.RenderPass;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
+import com.mojang.blaze3d.opengl.GlStateManager;
 import me.zziger.obsoverlay.component.IOverlayComponent;
 import me.zziger.obsoverlay.mixin.accessor.GuiRendererAccessor;
 import net.minecraft.client.Minecraft;
@@ -116,6 +117,10 @@ public class OverlayRenderer implements Closeable {
         Minecraft minecraft = Minecraft.getInstance();
         int width = minecraft.getWindow().getWidth();
         int height = minecraft.getWindow().getHeight();
+
+        if (width <= 0 || height <= 0) return;
+
+        GlStateManager._viewport(0, 0, width, height);
 
         try (RenderPass renderPass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                 () -> "Overlay Screen",

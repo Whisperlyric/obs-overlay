@@ -45,8 +45,11 @@ public class GameRendererMixin {
             if (overlayRenderer != null) {
                 var obs_overlay$customRenderer = overlayRenderer.getOverlayGuiRenderer(instance);
                 overlayRenderer.beginDraw();
-                obs_overlay$customRenderer.render(fogBuffer);
-                overlayRenderer.endDraw();
+                try {
+                    obs_overlay$customRenderer.render(fogBuffer);
+                } finally {
+                    overlayRenderer.endDraw();
+                }
             }
         }
     }
