@@ -1,5 +1,8 @@
 package me.zziger.obsoverlay;
 
+import com.mojang.blaze3d.ProjectionType;
+import com.mojang.blaze3d.buffers.GpuBuffer;
+import com.mojang.blaze3d.buffers.GpuBufferSlice;
 import com.mojang.blaze3d.pipeline.RenderTarget;
 import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.CommandEncoder;
@@ -15,8 +18,11 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.render.GuiRenderer;
 import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import org.jetbrains.annotations.NotNull;
+import org.joml.Matrix4f;
+import org.joml.Matrix4fStack;
 
 import java.io.Closeable;
+import java.nio.ByteBuffer;
 import java.util.OptionalInt;
 
 public class OverlayRenderer implements Closeable {
@@ -27,10 +33,24 @@ public class OverlayRenderer implements Closeable {
     private GuiGraphicsExtractor overlayGuiGraphicsExtractor;
     private GuiRenderer overlayGuiRenderer;
 
+    private static GpuBufferSlice identityProjectionBuffer;
+
     OverlayRenderer() {
         OverlayHook.init();
         OverlayHook.subscribe(this::renderFrame);
         initializeFramebuffers();
+        initializeIdentityProjection();
+    }
+
+    private static void initializeIdentityProjection() {
+        ByteBuffer buffer = ByteBuffer.allocateDirect(64);
+        new Matrix4f().get(buffer);
+        GpuBuffer gpuBuffer = RenderSystem.getDevice().createBuffer(
+                () -> "Identity Projection",
+                GpuBuffer.USAGE_UNIFORM,
+                buffer
+        );
+        identityProjectionBuffer = gpuBuffer.slice();
     }
 
     public void close() {
@@ -122,6 +142,15 @@ public class OverlayRenderer implements Closeable {
 
         GlStateManager._viewport(0, 0, width, height);
 
+        // screenquad.vsh applies ProjMat * ModelViewMat to vertex positions.
+        // Minecraft's GUI rendering leaves non-identity matrices, which distort
+        // the fullscreen triangle. Reset both to identity for the overlay pass.
+        RenderSystem.backupProjectionMatrix();
+        RenderSystem.setProjectionMatrix(identityProjectionBuffer, ProjectionType.ORTHOGRAPHIC);
+        Matrix4fStack mvStack = RenderSystem.getModelViewStack();
+        Matrix4f savedModelView = new Matrix4f(mvStack);
+        mvStack.identity();
+
         try (RenderPass renderPass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
                 () -> "Overlay Screen",
                 new OverlayScreenTextureView(width, height),
@@ -136,6 +165,10 @@ public class OverlayRenderer implements Closeable {
             );
             renderPass.draw(0, 3);
         }
+
+        // Restore original matrices
+        mvStack.set(savedModelView);
+        RenderSystem.restoreProjectionMatrix();
     }
 
     public void beginFrame() {
