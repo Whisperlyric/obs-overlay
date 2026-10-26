@@ -10,7 +10,12 @@ import org.spongepowered.asm.mixin.injection.At;
 
 @Mixin(GuiRenderer.class)
 public class GuiRendererMixin {
+    //#if MC >= 260200
+    //$$ // Minecraft.getMainRenderTarget() moved to GameRenderer.mainRenderTarget() in 26.2
+    //$$ @ModifyExpressionValue(method = "draw", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/renderer/GameRenderer;mainRenderTarget()Lcom/mojang/blaze3d/pipeline/RenderTarget;"))
+    //#else
     @ModifyExpressionValue(method = "draw", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/Minecraft;getMainRenderTarget()Lcom/mojang/blaze3d/pipeline/RenderTarget;"))
+    //#endif
     private RenderTarget overriddenTarget(RenderTarget original) {
         OverlayRenderer renderer = OBSOverlay.getRenderer();
         if (renderer != null)

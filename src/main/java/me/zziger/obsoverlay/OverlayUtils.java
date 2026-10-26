@@ -6,10 +6,19 @@ import net.minecraft.network.chat.Component;
 
 public class OverlayUtils {
     public static void showToast(Component title, Component description) {
+        //#if MC >= 260200
+        //$$ // Minecraft.getToastManager() moved to Minecraft.gui.toastManager() in 26.2
+        //$$ Minecraft.getInstance().submit(() ->
+        //$$         Minecraft.getInstance()
+        //$$                 .gui.toastManager()
+        //$$                 .addToast(new SystemToast(SystemToast.SystemToastId.LOW_DISK_SPACE, title, description))
+        //$$ );
+        //#else
         Minecraft.getInstance().submit(() ->
                 Minecraft.getInstance()
                         .getToastManager()
                         .addToast(new SystemToast(SystemToast.SystemToastId.LOW_DISK_SPACE, title, description))
         );
+        //#endif
     }
 }

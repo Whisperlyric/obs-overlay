@@ -1,0 +1,120 @@
+final int mcVersion = project.mcVersion
+final boolean unobfuscated = mcVersion >= 26_00_00
+
+apply plugin: unobfuscated ? 'net.fabricmc.fabric-loom' : 'net.fabricmc.fabric-loom-remap'
+apply plugin: 'com.replaymod.preprocess'
+
+repositories {
+	mavenCentral()
+	maven { url = 'https://maven.shedaniel.me/' }
+	maven { url = 'https://maven.terraformersmc.com/' }
+}
+
+// https://github.com/FabricMC/fabric-loader/issues/783
+configurations {
+	modRuntimeOnly.exclude group: 'net.fabricmc', module: 'fabric-loader'
+}
+
+dependencies {
+	def processDependency = { dep ->
+		// https://github.com/FabricMC/fabric-loader/issues/783
+		if (dep instanceof ModuleDependency && !(dep.group == 'net.fabricmc' && dep.name == 'fabric-loader')) {
+			dep.exclude group: 'net.fabricmc', module: 'fabric-loader'
+		}
+		return dep
+	}
+	def autoImplementation = { Object... args -> processDependency(unobfuscated ? implementation(*args) : modImplementation(*args)) }
+	def autoCompileOnly = { Object... args -> processDependency(unobfuscated ? compileOnly(*args) : modCompileOnly(*args)) }
+
+	// Minecraft
+	minecraft "com.mojang:minecraft:${project.minecraft_version}"
+	if (!unobfuscated) {
+		mappings loom.layered() {
+			officialMojangMappings()
+		}
+	}
+
+	autoImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+	autoImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_api_version}"
+
+	// Cloth Config
+	autoImplementation("me.shedaniel.cloth:cloth-config-fabric:${project.cloth_config_version}") {
+		exclude group: 'net.fabricmc', module: 'fabric-api'
+	}
+
+	// ModMenu (optional)
+	autoCompileOnly "com.terraformersmc:modmenu:${project.modmenu_version}"
+
+	autoCompileOnly "net.fabricmc:sponge-mixin:${project.mixin_version}"
+	autoImplementation "com.google.code.findbugs:jsr305:3.0.2"
+	autoImplementation "org.jetbrains:annotations:24.1.0"
+}
+
+JavaVersion JAVA_COMPATIBILITY = JavaVersion.VERSION_25
+JavaVersion MIXIN_COMPATIBILITY_LEVEL = JAVA_COMPATIBILITY
+
+loom {
+	runConfigs.configureEach {
+		// to make sure it generates all "Minecraft Client (:subproject_name)" applications
+		ideConfigGenerated = true
+		runDir '../../run'
+	}
+}
+
+// CI build number: '+build.N' when built on GitHub Actions, '-SNAPSHOT' for local builds
+// (BUILD_ID/BUILD_RELEASE are set by the workflow, cf. .github/workflows/build.yml)
+String modVersionSuffix = ''
+if (System.getenv("BUILD_RELEASE") != "true") {
+	String buildNumber = System.getenv("BUILD_ID")
+	modVersionSuffix += buildNumber != null ? ('+build.' + buildNumber) : '-SNAPSHOT'
+}
+group = "me.zziger.${project.mod_id}"
+base.archivesName = 'OBSOverlay'
+version = project.minecraft_version + '+v' + project.mod_version + modVersionSuffix
+
+// See https://youtrack.jetbrains.com/issue/IDEA-296490
+// if IDEA complains about "Cannot resolve resource filtering of MatchingCopyAction" and you want to know why
+processResources {
+	inputs.property "version", project.version
+	inputs.property "loader_version", project.loader_version
+	inputs.property "minecraft_dependency", project.minecraft_dependency
+	inputs.property "cloth_config_dependency", project.cloth_config_dependency
+
+	filesMatching("fabric.mod.json") {
+		def valueMap = [
+				"version": project.version,
+				"loader_version": project.loader_version,
+				"minecraft_dependency": project.minecraft_dependency,
+				"cloth_config_dependency": project.cloth_config_dependency,
+		]
+		expand valueMap
+	}
+
+	filesMatching('obs_overlay.mixins.json') {
+		filter { s -> s.replace('{{COMPATIBILITY_LEVEL}}', "JAVA_${MIXIN_COMPATIBILITY_LEVEL.ordinal() + 1}") }
+	}
+}
+
+// ensure that the encoding is set to UTF-8, no matter what the system default is
+// this fixes some edge cases with special characters not displaying correctly
+// see http://yodaconditions.net/blog/fix-for-java-encoding-problems-with-gradle.html
+tasks.withType(JavaCompile).configureEach {
+	options.encoding = "UTF-8"
+	options.compilerArgs << "-Xlint:deprecation" << "-Xlint:unchecked"
+}
+
+java {
+	sourceCompatibility = JAVA_COMPATIBILITY
+	targetCompatibility = JAVA_COMPATIBILITY
+
+	// Loom will automatically attach sourcesJar to a RemapSourcesJar task and to the "build" task
+	// if it is present.
+	// If you remove this line, sources will not be generated.
+	withSourcesJar()
+}
+
+jar {
+	from(rootProject.file('LICENSE')) {
+		rename { "${it}" }
+	}
+}

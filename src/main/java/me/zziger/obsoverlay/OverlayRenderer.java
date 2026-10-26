@@ -1,16 +1,38 @@
 package me.zziger.obsoverlay;
 
 import com.mojang.blaze3d.ProjectionType;
+//#if MC >= 260300
+//$$ // 26.3 moved the whole GPU abstraction into the renderpearl library; only
+//$$ // RenderSystem / RenderTarget / TextureTarget stay in blaze3d
+//$$ import com.mojang.renderpearl.api.GpuFormat;
+//$$ import com.mojang.renderpearl.api.buffers.GpuBuffer;
+//$$ import com.mojang.renderpearl.api.buffers.GpuBufferSlice;
+//$$ import com.mojang.renderpearl.api.commands.CommandEncoder;
+//$$ import com.mojang.renderpearl.api.commands.RenderPass;
+//$$ import com.mojang.renderpearl.api.textures.FilterMode;
+//$$ import com.mojang.renderpearl.api.textures.GpuTexture;
+//$$ import com.mojang.renderpearl.backend.opengl.GlStateManager;
+//#elseif MC >= 260200
+//$$ import com.mojang.blaze3d.GpuFormat;
+//$$ import com.mojang.blaze3d.buffers.GpuBuffer;
+//$$ import com.mojang.blaze3d.buffers.GpuBufferSlice;
+//$$ import com.mojang.blaze3d.systems.CommandEncoder;
+//$$ import com.mojang.blaze3d.systems.RenderPass;
+//$$ import com.mojang.blaze3d.textures.FilterMode;
+//$$ import com.mojang.blaze3d.textures.GpuTexture;
+//$$ import com.mojang.blaze3d.opengl.GlStateManager;
+//#else
 import com.mojang.blaze3d.buffers.GpuBuffer;
 import com.mojang.blaze3d.buffers.GpuBufferSlice;
-import com.mojang.blaze3d.pipeline.RenderTarget;
-import com.mojang.blaze3d.pipeline.TextureTarget;
 import com.mojang.blaze3d.systems.CommandEncoder;
 import com.mojang.blaze3d.systems.RenderPass;
-import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.textures.FilterMode;
 import com.mojang.blaze3d.textures.GpuTexture;
 import com.mojang.blaze3d.opengl.GlStateManager;
+//#endif
+import com.mojang.blaze3d.pipeline.RenderTarget;
+import com.mojang.blaze3d.pipeline.TextureTarget;
+import com.mojang.blaze3d.systems.RenderSystem;
 import me.zziger.obsoverlay.component.IOverlayComponent;
 import me.zziger.obsoverlay.mixin.accessor.GuiRendererAccessor;
 import net.minecraft.client.Minecraft;
@@ -20,10 +42,18 @@ import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import org.jetbrains.annotations.NotNull;
 import org.joml.Matrix4f;
 import org.joml.Matrix4fStack;
+//#if MC >= 260200
+//$$ import org.joml.Vector4f;
+//#endif
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
+//#if MC >= 260200
+//$$ import java.util.Optional;
+//$$ import java.util.OptionalDouble;
+//#else
 import java.util.OptionalInt;
+//#endif
 
 public class OverlayRenderer implements Closeable {
     private boolean framebufferOverridden = false;
@@ -59,7 +89,14 @@ public class OverlayRenderer implements Closeable {
 
     private void initializeFramebuffers() {
         Minecraft client = Minecraft.getInstance();
+        //#if MC >= 260300
+        //$$ // 26.3 TextureTarget takes color+depth formats instead of a useDepth flag
+        //$$ RenderTarget simpleFramebuffer = new TextureTarget("Overlay Target", client.getWindow().getWidth(), client.getWindow().getHeight(), GpuFormat.RGBA8_UNORM, GpuFormat.D32_FLOAT);
+        //#elseif MC >= 260200
+        //$$ RenderTarget simpleFramebuffer = new TextureTarget("Overlay Target", client.getWindow().getWidth(), client.getWindow().getHeight(), true, GpuFormat.RGBA8_UNORM);
+        //#else
         RenderTarget simpleFramebuffer = new TextureTarget("Overlay Target", client.getWindow().getWidth(), client.getWindow().getHeight(), true);
+        //#endif
         clearFramebuffer(simpleFramebuffer);
         this.overlayFramebuffer = new OverlayFramebuffer(simpleFramebuffer);
     }
@@ -74,10 +111,22 @@ public class OverlayRenderer implements Closeable {
         if (colorTexture == null) return;
 
         CommandEncoder encoder = RenderSystem.getDevice().createCommandEncoder();
+        //#if MC >= 260300
+        //$$ if (target.getDepthTexture() != null) {
+        //#else
         if (target.useDepth && target.getDepthTexture() != null) {
+            //#endif
+            //#if MC >= 260200
+            //$$ encoder.clearColorAndDepthTextures(colorTexture, new Vector4f(0, 0, 0, 0), target.getDepthTexture(), 1.0);
+            //#else
             encoder.clearColorAndDepthTextures(colorTexture, 0, target.getDepthTexture(), 1.0);
+            //#endif
         } else {
+            //#if MC >= 260200
+            //$$ encoder.clearColorTexture(colorTexture, new Vector4f(0, 0, 0, 0));
+            //#else
             encoder.clearColorTexture(colorTexture,0);
+            //#endif
         }
     }
 
@@ -85,6 +134,13 @@ public class OverlayRenderer implements Closeable {
         if (overlayGuiRenderer != null) return overlayGuiRenderer;
 
         var accessor = (GuiRendererAccessor) copyFrom;
+        //#if MC >= 260200
+        //$$ this.overlayGuiRenderer = new GuiRenderer(
+        //$$         this.overlayGuiState,
+        //$$         accessor.getFeatureRenderDispatcher(),
+        //$$         accessor.getPictureInPictureRenderers().values().stream().toList()
+        //$$ );
+        //#else
         this.overlayGuiRenderer = new GuiRenderer(
                 this.overlayGuiState,
                 accessor.getBufferSource(),
@@ -92,13 +148,19 @@ public class OverlayRenderer implements Closeable {
                 accessor.getFeatureRenderDispatcher(),
                 accessor.getPictureInPictureRenderers().values().stream().toList()
         );
+        //#endif
 
         return overlayGuiRenderer;
     }
 
     public RenderTarget getGuiRenderTarget() {
         if (this.framebufferOverridden && overlayFramebuffer != null) return overlayFramebuffer.object;
+        //#if MC >= 260200
+        //$$ // Minecraft.getMainRenderTarget() moved to GameRenderer.mainRenderTarget() in 26.2
+        //$$ return Minecraft.getInstance().gameRenderer.mainRenderTarget();
+        //#else
         else return Minecraft.getInstance().getMainRenderTarget();
+        //#endif
     }
 
     public GuiGraphicsExtractor getGuiGraphicsExtractor() {
@@ -131,6 +193,7 @@ public class OverlayRenderer implements Closeable {
         );
     }
 
+    //#if MC < 260200
     private static void renderQuad(RenderTarget framebuffer) {
         if (framebuffer.getColorTexture() == null) return;
 
@@ -170,6 +233,67 @@ public class OverlayRenderer implements Closeable {
         mvStack.set(savedModelView);
         RenderSystem.restoreProjectionMatrix();
     }
+    //#endif
+
+    //#if MC >= 260200
+    //$$ /**
+    //$$  * 26.2+: composites the overlay framebuffer over the main render target right
+    //$$  * after the GUI pass, inside GameRenderer.render. The pre-26.2 end-of-frame
+    //$$  * blit to FBO 0 is no longer viable: the game presents the frame by blitting
+    //$$  * an internal texture to the window surface, so anything drawn to FBO 0 at
+    //$$  * swap time is overwritten by the swapchain image.
+    //$$  */
+    //$$ public void compositeOverlay() {
+    //$$     if (overlayFramebuffer == null || !overlayFramebuffer.dirty) return;
+    //$$     overlayFramebuffer.dirty = false;
+    //$$
+    //$$     RenderTarget framebuffer = overlayFramebuffer.object;
+    //$$     if (framebuffer.getColorTexture() == null) return;
+    //$$
+    //$$     RenderTarget mainTarget = Minecraft.getInstance().gameRenderer.mainRenderTarget();
+    //$$
+    //$$     RenderSystem.backupProjectionMatrix();
+    //$$     RenderSystem.setProjectionMatrix(identityProjectionBuffer, ProjectionType.ORTHOGRAPHIC);
+    //$$     Matrix4fStack mvStack = RenderSystem.getModelViewStack();
+    //$$     Matrix4f savedModelView = new Matrix4f(mvStack);
+    //$$     mvStack.identity();
+    //$$
+    //$$     try (RenderPass renderPass = RenderSystem.getDevice().createCommandEncoder().createRenderPass(
+    //$$             () -> "Overlay Screen",
+    //$$             mainTarget.getColorTextureView(),
+    //$$             Optional.empty(),
+    //#if MC >= 260300
+    //$$             mainTarget.getDepthTextureView(),
+    //#else
+    //$$             mainTarget.useDepth ? mainTarget.getDepthTextureView() : null,
+    //#endif
+    //$$             OptionalDouble.empty()
+    //$$     )) {
+    //#if MC >= 260300
+    //$$         // 26.3: pipelines must be compiled through RenderSystem before use
+    //$$         renderPass.setPipeline(RenderSystem.getCompiledPipeline(OverlayPipelines.OVERLAY_COMPOSITE));
+    //#else
+    //$$         renderPass.setPipeline(OverlayPipelines.OVERLAY_COMPOSITE);
+    //#endif
+    //$$         RenderSystem.bindDefaultUniforms(renderPass);
+    //#if MC >= 260300
+    //$$         // 26.3 renamed RenderPass.bindTexture to setUniform
+    //$$         renderPass.setUniform(
+    //#else
+    //$$         renderPass.bindTexture(
+    //#endif
+    //$$                 "InSampler",
+    //$$                 framebuffer.getColorTextureView(),
+    //$$                 RenderSystem.getSamplerCache().getClampToEdge(FilterMode.NEAREST)
+    //$$         );
+    //$$         // screenquad: 3 vertices, 1 instance, first vertex 0, base instance 0
+    //$$         renderPass.draw(3, 1, 0, 0);
+    //$$     }
+    //$$
+    //$$     mvStack.set(savedModelView);
+    //$$     RenderSystem.restoreProjectionMatrix();
+    //$$ }
+    //#endif
 
     public void beginFrame() {
         if (overlayFramebuffer == null) return;
@@ -189,6 +313,8 @@ public class OverlayRenderer implements Closeable {
     public void renderFrame() {
         if (overlayFramebuffer == null || !overlayFramebuffer.dirty) return;
         overlayFramebuffer.dirty = false;
+        //#if MC < 260200
         renderQuad(overlayFramebuffer.object);
+        //#endif
     }
 }

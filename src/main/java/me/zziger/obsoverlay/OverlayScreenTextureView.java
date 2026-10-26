@@ -1,12 +1,16 @@
 package me.zziger.obsoverlay;
 
+//#if MC < 26_02_00
+// Fake Texture View pinning the FBO to 0 (the window framebuffer), used by the
+// end-of-frame overlay blit. Removed on 26.2+: the game composites frames through
+// an internal surface blit, so the overlay draws into the main render target
+// instead (see OverlayRenderer#compositeOverlay).
 import com.mojang.blaze3d.opengl.DirectStateAccess;
 import com.mojang.blaze3d.opengl.GlTexture;
 import com.mojang.blaze3d.opengl.GlTextureView;
 import com.mojang.blaze3d.textures.TextureFormat;
 import org.jetbrains.annotations.NotNull;
 
-// A Fake Texture View, to insure FBO=0
 public class OverlayScreenTextureView extends GlTextureView {
     private final int width;
     private final int height;
@@ -74,3 +78,4 @@ public class OverlayScreenTextureView extends GlTextureView {
         }
     }
 }
+//#endif

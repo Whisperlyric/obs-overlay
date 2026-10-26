@@ -23,7 +23,12 @@ public abstract class VideoSettingsScreenMixin extends OptionsSubScreen {
     public void init(CallbackInfo ci) {
         if (this.list != null) {
             this.list.addSmall(Button.builder(Component.translatable("obs_overlay.config.title"), (button) -> {
+                //#if MC >= 260200
+                //$$ // Minecraft.setScreen moved to Minecraft.gui.setScreen in 26.2
+                //$$ this.minecraft.gui.setScreen(OBSOverlayConfig.getScreenSupplier((VideoSettingsScreen) (Object) this).get());
+                //#else
                 this.minecraft.setScreen(OBSOverlayConfig.getScreenSupplier((VideoSettingsScreen) (Object) this).get());
+                //#endif
             }).build(), null);
         }
     }

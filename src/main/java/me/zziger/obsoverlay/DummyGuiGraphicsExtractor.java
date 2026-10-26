@@ -1,6 +1,10 @@
 package me.zziger.obsoverlay;
 
+//#if MC >= 260300
+//$$ import com.mojang.renderpearl.api.pipeline.RenderPipeline;
+//#else
 import com.mojang.blaze3d.pipeline.RenderPipeline;
+//#endif
 import me.zziger.obsoverlay.mixin.accessor.GuiGraphicsExtractorAccessor;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
@@ -10,7 +14,9 @@ import net.minecraft.client.renderer.state.gui.GuiRenderState;
 import net.minecraft.client.model.Model;
 import net.minecraft.client.model.object.banner.BannerFlagModel;
 import net.minecraft.client.model.object.book.BookModel;
+//#if MC < 260200
 import net.minecraft.client.model.player.PlayerModel;
+//#endif
 import net.minecraft.client.renderer.entity.state.EntityRenderState;
 import net.minecraft.client.renderer.state.MapRenderState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
@@ -20,9 +26,17 @@ import net.minecraft.util.profiling.ResultField;
 import net.minecraft.world.item.DyeColor;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BannerPatternLayers;
+//#if MC < 260200
 import net.minecraft.world.level.block.state.properties.WoodType;
+//#endif
 import org.joml.Quaternionf;
+//#if MC >= 260200
+//$$ // 26.2 narrowed the entity matrix parameter types to the read-only JOML interfaces
+//$$ import org.joml.Quaternionfc;
+//$$ import org.joml.Vector3fc;
+//#else
 import org.joml.Vector3f;
+//#endif
 
 import java.util.List;
 
@@ -93,13 +107,27 @@ public class DummyGuiGraphicsExtractor extends GuiGraphicsExtractor {
     public void map(MapRenderState renderState) {
     }
 
+    //#if MC >= 260200
+    //$$ // 26.2 narrowed the entity matrix parameter types to the read-only JOML interfaces
+    //$$ @Override
+    //$$ public void entity(EntityRenderState renderState, float scale, Vector3fc translation, Quaternionfc rotation, Quaternionfc overrideCameraAngle, int x0, int y0, int x1, int y1) {
+    //$$ }
+    //#else
     @Override
     public void entity(EntityRenderState renderState, float scale, Vector3f translation, Quaternionf rotation, Quaternionf overrideCameraAngle, int x0, int y0, int x1, int y1) {
     }
+    //#endif
 
+    //#if MC >= 260200
+    //$$ // 26.2 merged the skin/sign entry points into a single Model.Simple-based one
+    //$$ @Override
+    //$$ public void skin(Model.Simple signModel, Identifier texture, float rotationX, float rotationY, float pivotY, float scale, int x0, int y0, int x1, int y1) {
+    //$$ }
+    //#else
     @Override
     public void skin(PlayerModel playerModel, Identifier texture, float rotationX, float rotationY, float pivotY, float scale, int x0, int y0, int x1, int y1) {
     }
+    //#endif
 
     @Override
     public void book(BookModel bookModel, Identifier texture, float open, float flip, float scale, int x0, int y0, int x1, int y1) {
@@ -109,9 +137,11 @@ public class DummyGuiGraphicsExtractor extends GuiGraphicsExtractor {
     public void bannerPattern(BannerFlagModel flag, DyeColor baseColor, BannerPatternLayers resultBannerPatterns, int x0, int y0, int x1, int y1) {
     }
 
+    //#if MC < 260200
     @Override
     public void sign(Model.Simple signModel, float scale, WoodType woodType, int x0, int y0, int x1, int y1) {
     }
+    //#endif
 
     @Override
     public void profilerChart(List<ResultField> chartData, int x0, int y0, int x1, int y1) {
